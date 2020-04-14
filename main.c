@@ -130,8 +130,10 @@ int dele(client_t *client)
     else if (my_strlen_tab(client->command) == 1 || my_strlen_tab(client->command) > 2)
         dprintf(client->fd, "xxx Bad Argument.\n");
     else {
-        remove(client->command[1]);
-        dprintf(client->fd, "250 Requested file action okay, completed.\n");
+        if (remove(client->command[1]) == 0)
+            dprintf(client->fd, "250 Requested file action okay, completed.\n");
+        else
+            dprintf(client->fd, "xxx Can't Delete file.\n");
     }
     return (0);
 }
