@@ -5,7 +5,10 @@
 ## Makefile
 ##
 
-SRC	=		main.c
+SRC	=		main.c		\
+			tab_tools.c	\
+			word_tab.c	\
+			free_word.c \
 
 SRC_T	=
 
@@ -26,7 +29,7 @@ CPPFLAGS	=	-I./include
 all: $(NAME)
 
 $(NAME):	$(OBJ)
-	gcc -o $(NAME) $(OBJ) $(CPPFLAGS) $(CFLAGS)
+	gcc -o $(NAME) $(OBJ) $(CPPFLAGS) $(CFLAGS) -g3
 
 tests_run 	:
 			gcc $(SRC_T) $(CFLAGS) $(CPPFLAGS) $(TEST_FLAGS) -o $(TESTS_NAME)
