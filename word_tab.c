@@ -7,7 +7,9 @@
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdbool.h>
+#include <ftp.h>
 
 static bool end_word(char const c, char const *del)
 {
@@ -52,7 +54,7 @@ static char *findex(char **str, char const *del, size_t word_len)
 
 char **word_tab(char const *src, char const *del)
 {
-    char *str = src/*clean_str(src, del)*/;
+    char *str = strdup(src);
     size_t nb_line = get_nb_line(str, del);
     size_t wlen = 0;
     char **tab = NULL;

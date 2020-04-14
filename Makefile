@@ -20,9 +20,9 @@ TEST_FLAGS	=	-lcriterion --coverage
 
 NAME	=	myftp
 
-CFLAGS =	-Wall -Wextra
+CFLAGS =	-Wall -Wextra -g3
 
-CPPFLAGS	=	-I./include
+CPPFLAGS	=	-I./include -g3
 
 .DEFAULT := all
 

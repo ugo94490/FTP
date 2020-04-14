@@ -18,6 +18,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <poll.h>
+#include <limits.h>
 #include "ftp.h"
 
 static const char *cmd[14] = {
@@ -66,7 +67,7 @@ int pass(client_t *client)
     else if (client->log == 1)
         dprintf(client->fd, "xxx Already Connected.\n");
     else {
-        if (strncmp(client->user, "Anonymous", 9) == 0 && my_strlen_tab(client->command) == 1) {
+        if (strncmp(client->user, "Anonymous", 9) == 0) {
             dprintf(client->fd, "230 User logged in, proceed.\n");
             client->log = 1;
         } else
@@ -77,17 +78,42 @@ int pass(client_t *client)
 
 int cwd(client_t *client)
 {
+    int ret = 0;
+
     if (client->log != 1)
-        dprintf(client->fd, "xxx Not Connected");
-    (void)client;
+        dprintf(client->fd, "xxx Not Connected.\n");
+    else if (my_strlen_tab(client->command) == 1 || my_strlen_tab(client->command) >= 3)
+        dprintf(client->fd, "xxx Bad Argument LEN.\n");
+    else {
+        ret = chdir(client->command[1]);
+        if (ret == 0)
+            dprintf(client->fd, "250 Requested file action okay, completed.\n");
+        else
+            dprintf(client->fd, "xxx Bad Argument.\n");
+    }
     return (0);
 }
 
 int cdup(client_t *client)
 {
-    if (client->log != 1)
-        dprintf(client->fd, "xxx Not Connected");
-    (void)client;
+    char path[256];
+    int len = 0;
+    char *new_dir = NULL;
+
+    if (client->log != 1) {
+        dprintf(client->fd, "xxx Not Connected.\n");
+        return (0);
+    }
+    getcwd(path, sizeof(path));
+    len = strlen(path);
+    for (; len != 0 && path[len] != '/'; len--);
+    new_dir = malloc(sizeof(char) * (len + 1));
+    new_dir = strncpy(new_dir, path, len);
+    new_dir[len] = '\0';
+    if (chdir(new_dir) == 0)
+        dprintf(client->fd, "200 CDUP okay.\n");
+    else
+        dprintf(client->fd, "xxx CDUP failed.\n");
     return (0);
 }
 
@@ -100,16 +126,26 @@ int quit(client_t *client)
 int dele(client_t *client)
 {
     if (client->log != 1)
-        dprintf(client->fd, "xxx Not Connected");
-    (void)client;
+        dprintf(client->fd, "xxx Not Connected.\n");
+    else if (my_strlen_tab(client->command) == 1 || my_strlen_tab(client->command) > 2)
+        dprintf(client->fd, "xxx Bad Argument.\n");
+    else {
+        remove(client->command[1]);
+        dprintf(client->fd, "250 Requested file action okay, completed.\n");
+    }
     return (0);
 }
 
 int pwd(client_t *client)
 {
-    if (client->log != 1)
-        dprintf(client->fd, "xxx Not Connected");
-    (void)client;
+    char path[256];
+
+    if (client->log != 1) {
+        dprintf(client->fd, "xxx Not Connected.\n");
+        return (0);
+    }
+    getcwd(path, sizeof(path));
+    dprintf(client->fd, "257 \"%s\" created.\n", path);
     return (0);
 }
 
@@ -133,7 +169,11 @@ int help(client_t *client)
 {
     if (client->log != 1)
         dprintf(client->fd, "xxx Not Connected");
-    (void)client;
+    else {
+        dprintf(client->fd, "214 Command available: USER, PASS, CWD, CDUP");
+        dprintf(client->fd, " QUIT, DELE, PWD, PASV, PORT, HELP, NOOP, RETR");
+        dprintf(client->fd, " STOR, LIST.\n");
+    }
     return (0);
 }
 
@@ -202,7 +242,10 @@ int list(client_t *client)
         dup2(link[1], STDOUT_FILENO);
         close(link[0]);
         close (link[1]);
-        execl("/bin/ls", "ls", "-l", (char *)0);
+        if (my_strlen_tab(client->command) == 1)
+            execl("/bin/ls", "ls", "-l", (char *)0);
+        if (my_strlen_tab(client->command) == 2)
+            execl("/bin/ls", "ls", "-l", client->command[1], (char *)0);
     } else {
         while ((n = read(link[0], tmp, sizeof(tmp))) > 0) {
             res = dupcat(res, tmp, n);
@@ -244,7 +287,7 @@ int usage(char *str)
     return (0);
 }
 
-int init_server(void)
+int init_server(int port)
 {
     int my_socket = 0;
     int option = 1;
@@ -258,7 +301,7 @@ int init_server(void)
     }
     my_addr.sin_family = AF_INET;
     my_addr.sin_addr.s_addr = INADDR_ANY;
-    my_addr.sin_port = htons(4242);
+    my_addr.sin_port = htons(port);
     lenght_socket = sizeof(my_addr);
     if (setsockopt(my_socket, SOL_SOCKET, (SO_REUSEPORT | SO_REUSEADDR), (char *)&option, sizeof(option)) < 0) {
         perror("Setsockopt");
@@ -302,8 +345,8 @@ int exec_client_connection(int fd, char **env)
     client->fd = fd;
     client->log = -1;
     client->env = my_arraycpy(env);
-    dprintf(client->fd, "220 Service ready for new user.\n");
     while (getline(&str, &n, stream) >= 0) {
+        str[strlen(str) - 1] = '\0';
         client->command = word_tab(str, " ");
         if (choose_command(client) == 1)
             break;
@@ -321,16 +364,18 @@ int accept_client(int my_socket, struct sockaddr_in my_addr)
 
     if (socket_fd == -1)
         printf("error accept");
+    else
+        dprintf(socket_fd, "220 Service ready for new user.\n");
     return socket_fd;
 }
 
-struct sockaddr_in init_my_addr(void)
+struct sockaddr_in init_my_addr(int port)
 {
     struct sockaddr_in my_addr;
 
     my_addr.sin_family = AF_INET;
     my_addr.sin_addr.s_addr = INADDR_ANY;
-    my_addr.sin_port = htons(4242);
+    my_addr.sin_port = htons(port);
     return (my_addr);
 }
 
@@ -338,20 +383,22 @@ int main(int ac, char **av, char **env)
 {
     int my_socket = 0;
     int client_socket = 0;
-    struct sockaddr_in my_addr = init_my_addr();
+    struct sockaddr_in my_addr;
     fd_set current;
     fd_set ready;
     pid_t pid = 0;
 
     if (ac == 2 && strcmp(av[1], "-help") == 0)
         return (usage(av[0]));
-    if ((my_socket = init_server()) == 0)
+    if (ac != 3)
+        return (84);
+    chdir(av[2]);
+    my_addr = init_my_addr(atoi(av[1]));
+    if ((my_socket = init_server(atoi(av[1]))) == 0)
         return (84);
     FD_ZERO(&current);
     FD_SET(my_socket, &current);
 
-    //printf("%d\n", my_socket);
-    //printf("%d\n", FD_SETSIZE);
     while (1) {
         ready = current;
         if (select(FD_SETSIZE, &ready, NULL, NULL, NULL) < 0) {

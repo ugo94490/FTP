@@ -6,6 +6,8 @@
 */
 
 #include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
 int my_strlen_tab(char **tab)
 {
