@@ -47,7 +47,7 @@ int user(client_t *client)
     if (my_strlen_tab(client->command) < 2 && client->log == -1)
         dprintf(client->fd, "214 Not Enough argument USER.\n");
     else if (client->log == 1)
-        dprintf(client->fd, "214 Already Connected.\n");
+        dprintf(client->fd, "530 Already Connected.\n");
     else {
         client->user = strdup(client->command[1]);
         client->log = 0;
@@ -65,7 +65,7 @@ int pass(client_t *client)
     if (client->log == -1)
         dprintf(client->fd, "332 Need account for login.\n");
     else if (client->log == 1)
-        dprintf(client->fd, "214 Already Connected.\n");
+        dprintf(client->fd, "530 Already Connected.\n");
     else {
         if (strncmp(client->user, "Anonymous", 9) == 0) {
             dprintf(client->fd, "230 User logged in, proceed.\n");
@@ -81,15 +81,15 @@ int cwd(client_t *client)
     int ret = 0;
 
     if (client->log != 1)
-        dprintf(client->fd, "214 Not Connected.\n");
+        dprintf(client->fd, "530 Not Connected.\n");
     else if (my_strlen_tab(client->command) == 1 || my_strlen_tab(client->command) >= 3)
-        dprintf(client->fd, "214 Bad Argument CWD.\n");
+        dprintf(client->fd, "550 Failed to change directory.\n");
     else {
         ret = chdir(client->command[1]);
         if (ret == 0)
             dprintf(client->fd, "250 Requested file action okay, completed.\n");
         else
-            dprintf(client->fd, "214 Bad Directory.\n");
+            dprintf(client->fd, "550 Failed to change directory.\n");
     }
     return (0);
 }
@@ -101,7 +101,7 @@ int cdup(client_t *client)
     char *new_dir = NULL;
 
     if (client->log != 1) {
-        dprintf(client->fd, "214 Not Connected.\n");
+        dprintf(client->fd, "530 Not Connected.\n");
         return (0);
     }
     getcwd(path, sizeof(path));
@@ -120,13 +120,14 @@ int cdup(client_t *client)
 int quit(client_t *client)
 {
     dprintf(client->fd, "221 Service closing control connection\n");
+    close(client->fd);
     return (1);
 }
 
 int dele(client_t *client)
 {
     if (client->log != 1)
-        dprintf(client->fd, "214 Not Connected.\n");
+        dprintf(client->fd, "530 Not Connected.\n");
     else if (my_strlen_tab(client->command) == 1 || my_strlen_tab(client->command) > 2)
         dprintf(client->fd, "214 Bad Argument.\n");
     else {
@@ -143,7 +144,7 @@ int pwd(client_t *client)
     char path[256];
 
     if (client->log != 1) {
-        dprintf(client->fd, "214 Not Connected.\n");
+        dprintf(client->fd, "530 Not Connected.\n");
         return (0);
     }
     getcwd(path, sizeof(path));
@@ -154,7 +155,7 @@ int pwd(client_t *client)
 int pasv(client_t *client)
 {
     if (client->log != 1)
-        dprintf(client->fd, "214 Not Connected");
+        dprintf(client->fd, "530 Not Connected");
     else
         dprintf(client->fd, "227 Entering Passive Mode (h1, h2, h3, h4, p1, p2).\n");
     return (0);
@@ -163,7 +164,7 @@ int pasv(client_t *client)
 int port(client_t *client)
 {
     if (client->log != 1)
-        dprintf(client->fd, "214 Not Connected");
+        dprintf(client->fd, "530 Not Connected");
     else
         dprintf(client->fd, "200 Command okay.\n");
     return (0);
@@ -172,7 +173,7 @@ int port(client_t *client)
 int help(client_t *client)
 {
     if (client->log != 1)
-        dprintf(client->fd, "214 Not Connected");
+        dprintf(client->fd, "530 Not Connected");
     else {
         dprintf(client->fd, "214 Command available: USER, PASS, CWD, CDUP");
         dprintf(client->fd, " QUIT, DELE, PWD, PASV, PORT, HELP, NOOP, RETR");
@@ -184,7 +185,7 @@ int help(client_t *client)
 int noop(client_t *client)
 {
     if (client->log != 1)
-        dprintf(client->fd, "214 Not Connected");
+        dprintf(client->fd, "530 Not Connected");
     dprintf(client->fd, "200 NOOP okay.\n");
     return (0);
 }
@@ -192,7 +193,7 @@ int noop(client_t *client)
 int retr(client_t *client)
 {
     if (client->log != 1)
-        dprintf(client->fd, "214 Not Connected");
+        dprintf(client->fd, "530 Not Connected");
     (void)client;
     return (0);
 }
@@ -200,7 +201,7 @@ int retr(client_t *client)
 int stor(client_t *client)
 {
     if (client->log != 1)
-        dprintf(client->fd, "214 Not Connected");
+        dprintf(client->fd, "530 Not Connected");
     (void)client;
     return (0);
 }
@@ -231,7 +232,7 @@ int list(client_t *client)
     char *res = NULL;
 
     if (client->log != 1) {
-        dprintf(client->fd, "214 Not Connected");
+        dprintf(client->fd, "530 Not Connected");
         return (0);
     }
     if (pipe(link) == -1) {
