@@ -111,7 +111,7 @@ int cdup(client_t *client)
     new_dir = strncpy(new_dir, path, len);
     new_dir[len] = '\0';
     if (chdir(new_dir) == 0)
-        dprintf(client->fd, "200 CDUP okay.\n");
+        dprintf(client->fd, "250 Directory successfully changed.\n");
     else
         dprintf(client->fd, "214 CDUP failed.\n");
     return (0);
