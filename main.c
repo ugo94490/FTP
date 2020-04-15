@@ -155,7 +155,8 @@ int pasv(client_t *client)
 {
     if (client->log != 1)
         dprintf(client->fd, "214 Not Connected");
-    (void)client;
+    else
+        dprintf(client->fd, "227 Entering Passive Mode (h1, h2, h3, h4, p1, p2).\n");
     return (0);
 }
 
@@ -163,7 +164,8 @@ int port(client_t *client)
 {
     if (client->log != 1)
         dprintf(client->fd, "214 Not Connected");
-    (void)client;
+    else
+        dprintf(client->fd, "200 Command okay.\n");
     return (0);
 }
 
