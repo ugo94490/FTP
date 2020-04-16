@@ -27,6 +27,7 @@ typedef struct sock_s
 {
     int fd;
     struct sockaddr_in my_addr;
+    int fd_client;
 } sock_t;
 
 typedef struct client_s

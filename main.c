@@ -174,6 +174,8 @@ int pasv(client_t *client)
     uint16_t size = 0;
     int port = 0;
     int option = 1;
+    pid_t pid = 0;
+    socklen_t lenght_socket;
 
     if (client->log != 1)
         dprintf(client->fd, "530 Not Connected.\r\n");
@@ -200,13 +202,27 @@ int pasv(client_t *client)
             perror("Listen");
         client->mode = 0;
         dprintf(client->fd, "227 Entering Passive Mode (127,0,0,1,%d,%d).\r\n", port / 256, port % 256);
+        pid = fork();
+        if (pid == 0) {
+            lenght_socket = sizeof(client->sock.my_addr);
+            client->sock.fd_client = accept(client->sock.fd, (struct sockaddr *) &client->sock.my_addr, &lenght_socket);
+            exit(0);
+        }
     }
     return (0);
 }
 
-/*int port_check()
+/*int parse_ip(char *ip)
 {
+    char *str = strdup(ip);
 
+
+}*/
+
+/*int port_check(client_t *client)
+{
+    //getip()
+    // COPY PASSV AVEC IP DONNEE
 }*/
 
 int port(client_t *client)
@@ -478,8 +494,10 @@ int main(int ac, char **av, char **env)
                         perror("FORK CLIENT");
                         return (0);
                     }
-                    if (pid == 0)
+                    if (pid == 0) {
                         exec_client_connection(i, env, av[2]);
+                        exit(0);
+                    }
                     FD_CLR(i, &current);
                 }
             }
