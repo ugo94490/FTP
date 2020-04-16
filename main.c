@@ -5,20 +5,6 @@
 ** main.c
 */
 
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <sys/types.h>
-#include <sys/select.h>
-#include <sys/time.h>
-#include <sys/wait.h>
-#include <netinet/in.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <poll.h>
-#include <limits.h>
 #include "ftp.h"
 
 static const char *cmd[14] = {
@@ -41,17 +27,17 @@ static const char *cmd[14] = {
 int user(client_t *client)
 {
     if (my_strlen_tab(client->command) > 2) {
-        dprintf(client->fd, "214 Too many parameters for USER.\n");
+        dprintf(client->fd, "501 Too many parameters for USER.\r\n");
         return (0);
     }
     if (my_strlen_tab(client->command) < 2 && client->log == -1)
-        dprintf(client->fd, "214 Not Enough argument USER.\n");
+        dprintf(client->fd, "501 Not Enough argument USER.\r\n");
     else if (client->log == 1)
-        dprintf(client->fd, "530 Already Connected.\n");
+        dprintf(client->fd, "530 Already Connected.\r\n");
     else {
         client->user = strdup(client->command[1]);
         client->log = 0;
-        dprintf(client->fd, "331 %s okay, need password.\n", client->command[1]);
+        dprintf(client->fd, "331 %s okay, need password.\r\n", client->command[1]);
     }
     return (0);
 }
@@ -59,21 +45,43 @@ int user(client_t *client)
 int pass(client_t *client)
 {
     if (my_strlen_tab(client->command) > 2) {
-        dprintf(client->fd, "214 Too many parameters for PASS.\n");
+        dprintf(client->fd, "501 Too many parameters for PASS.\r\n");
         return (0);
     }
     if (client->log == -1)
-        dprintf(client->fd, "332 Need account for login.\n");
+        dprintf(client->fd, "332 Need account for login.\r\n");
     else if (client->log == 1)
-        dprintf(client->fd, "530 Already Connected.\n");
+        dprintf(client->fd, "530 Already Connected.\r\n");
     else {
         if (strncmp(client->user, "Anonymous", 9) == 0) {
-            dprintf(client->fd, "230 User logged in, proceed.\n");
+            dprintf(client->fd, "230 User logged in, proceed.\r\n");
             client->log = 1;
         } else
-            dprintf(client->fd, "530 Not Logged in.\n");
+            dprintf(client->fd, "530 Not Logged in.\r\n");
     }
     return (0);
+}
+
+int check_chdir(client_t *client)
+{
+    int ret = 0;
+    char *resolved = NULL;
+
+    if (client->command[1][0] != '/') {
+        resolved = realpath(client->command[1], resolved);
+        if (resolved != NULL && strlen(resolved) > strlen(client->path)) {
+            ret = chdir(client->command[1]);
+            free(resolved);
+        }
+        if (resolved == NULL)
+            ret = -1;
+    } else {
+        if (strlen(client->command[1]) > strlen(client->path))
+            ret = chdir(client->command[1]);
+        else
+            ret = 0;
+    }
+    return (ret);
 }
 
 int cwd(client_t *client)
@@ -81,27 +89,31 @@ int cwd(client_t *client)
     int ret = 0;
 
     if (client->log != 1)
-        dprintf(client->fd, "530 Not Connected.\n");
-    else if (my_strlen_tab(client->command) == 1 || my_strlen_tab(client->command) >= 3)
-        dprintf(client->fd, "550 Failed to change directory.\n");
+        dprintf(client->fd, "530 Not Connected.\r\n");
+    else if (my_strlen_tab(client->command) >= 3)
+        dprintf(client->fd, "550 Failed to change directory.\r\n");
     else {
-        ret = chdir(client->command[1]);
-        if (ret == 0)
-            dprintf(client->fd, "250 Requested file action okay, completed.\n");
+        if (my_strlen_tab(client->command) == 1)
+            ret = chdir(client->path);
         else
-            dprintf(client->fd, "550 Failed to change directory.\n");
+            ret = check_chdir(client);
+        if (ret == 0)
+            dprintf(client->fd, "250 Requested file action okay, completed.\r\n");
+        else
+            dprintf(client->fd, "550 Failed to change directory.\r\n");
     }
     return (0);
 }
 
 int cdup(client_t *client)
 {
-    char path[256];
+    char path[256] = {0};
     int len = 0;
     char *new_dir = NULL;
+    int ret = 0;
 
     if (client->log != 1) {
-        dprintf(client->fd, "530 Not Connected.\n");
+        dprintf(client->fd, "530 Not Connected.\r\n");
         return (0);
     }
     getcwd(path, sizeof(path));
@@ -110,16 +122,21 @@ int cdup(client_t *client)
     new_dir = malloc(sizeof(char) * (len + 1));
     new_dir = strncpy(new_dir, path, len);
     new_dir[len] = '\0';
-    if (chdir(new_dir) == 0)
-        dprintf(client->fd, "250 Directory successfully changed.\n");
+    if (strlen(new_dir) < strlen(client->path))
+        ret = chdir(path);
     else
-        dprintf(client->fd, "214 CDUP failed.\n");
+        ret = chdir(new_dir);
+    if (ret == 0)
+        dprintf(client->fd, "250 Directory successfully changed.\r\n");
+    else
+        dprintf(client->fd, "550 Requested action not taken.\r\n");
+    free(new_dir);
     return (0);
 }
 
 int quit(client_t *client)
 {
-    dprintf(client->fd, "221 Service closing control connection\n");
+    dprintf(client->fd, "221 Service closing control connection.\r\n");
     close(client->fd);
     return (1);
 }
@@ -127,14 +144,14 @@ int quit(client_t *client)
 int dele(client_t *client)
 {
     if (client->log != 1)
-        dprintf(client->fd, "530 Not Connected.\n");
+        dprintf(client->fd, "530 Not Connected.\r\n");
     else if (my_strlen_tab(client->command) == 1 || my_strlen_tab(client->command) > 2)
-        dprintf(client->fd, "214 Bad Argument.\n");
+        dprintf(client->fd, "501 Bad Argument.\r\n");
     else {
         if (remove(client->command[1]) == 0)
-            dprintf(client->fd, "250 Requested file action okay, completed.\n");
+            dprintf(client->fd, "250 Requested file action okay, completed.\r\n");
         else
-            dprintf(client->fd, "214 Can't Delete file.\n");
+            dprintf(client->fd, "550 Can't Delete file.\r\n");
     }
     return (0);
 }
@@ -144,40 +161,73 @@ int pwd(client_t *client)
     char path[256];
 
     if (client->log != 1) {
-        dprintf(client->fd, "530 Not Connected.\n");
+        dprintf(client->fd, "530 Not Connected.\r\n");
         return (0);
     }
     getcwd(path, sizeof(path));
-    dprintf(client->fd, "257 \"%s\" created.\n", path);
+    dprintf(client->fd, "257 \"%s\" created.\r\n", path);
     return (0);
 }
 
 int pasv(client_t *client)
 {
+    uint16_t size = 0;
+    int port = 0;
+    int option = 1;
+
     if (client->log != 1)
-        dprintf(client->fd, "530 Not Connected");
-    else
-        dprintf(client->fd, "227 Entering Passive Mode (h1, h2, h3, h4, p1, p2).\n");
+        dprintf(client->fd, "530 Not Connected.\r\n");
+    else {
+        client->sock.fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (client->sock.fd == -1) {
+            perror("Socket");
+            return (0);
+        }
+        client->sock.my_addr.sin_family = AF_INET;
+        client->sock.my_addr.sin_addr.s_addr = INADDR_ANY;
+        port = rand() % 3000 + 1024;
+        client->sock.my_addr.sin_port = port;
+        size = sizeof(client->sock.my_addr);
+        if (setsockopt(client->sock.fd, SOL_SOCKET, (SO_REUSEPORT | SO_REUSEADDR), (char *)&option, sizeof(option)) < 0) {
+            perror("Setsockopt");
+            return (0);
+        }
+        if (bind(client->sock.fd, (struct sockaddr *) &client->sock.my_addr, size) == -1) {
+            perror("Bind");
+            return (0);
+        }
+        if (listen(client->sock.fd, 100) == -1)
+            perror("Listen");
+        client->mode = 0;
+        dprintf(client->fd, "227 Entering Passive Mode (127,0,0,1,%d,%d).\r\n", port / 256, port % 256);
+    }
     return (0);
 }
+
+/*int port_check()
+{
+
+}*/
 
 int port(client_t *client)
 {
     if (client->log != 1)
-        dprintf(client->fd, "530 Not Connected");
+        dprintf(client->fd, "530 Not Connected.\r\n");
+    else if (my_strlen_tab(client->command) != 1)
+        dprintf(client->fd, "501 Bad Argument.\r\n");
     else
-        dprintf(client->fd, "200 Command okay.\n");
+        dprintf(client->fd, "200 Command okay.\r\n");
     return (0);
 }
 
 int help(client_t *client)
 {
     if (client->log != 1)
-        dprintf(client->fd, "530 Not Connected");
+        dprintf(client->fd, "530 Not Connected.\r\n");
     else {
         dprintf(client->fd, "214 Command available: USER, PASS, CWD, CDUP");
         dprintf(client->fd, " QUIT, DELE, PWD, PASV, PORT, HELP, NOOP, RETR");
-        dprintf(client->fd, " STOR, LIST.\n");
+        dprintf(client->fd, " STOR, LIST.\r\n");
     }
     return (0);
 }
@@ -185,15 +235,15 @@ int help(client_t *client)
 int noop(client_t *client)
 {
     if (client->log != 1)
-        dprintf(client->fd, "530 Not Connected");
-    dprintf(client->fd, "200 NOOP okay.\n");
+        dprintf(client->fd, "530 Not Connected.\r\n");
+    dprintf(client->fd, "200 NOOP okay.\r\n");
     return (0);
 }
 
 int retr(client_t *client)
 {
     if (client->log != 1)
-        dprintf(client->fd, "530 Not Connected");
+        dprintf(client->fd, "530 Not Connected.\r\n");
     (void)client;
     return (0);
 }
@@ -201,7 +251,7 @@ int retr(client_t *client)
 int stor(client_t *client)
 {
     if (client->log != 1)
-        dprintf(client->fd, "530 Not Connected");
+        dprintf(client->fd, "530 Not Connected.\r\n");
     (void)client;
     return (0);
 }
@@ -232,7 +282,7 @@ int list(client_t *client)
     char *res = NULL;
 
     if (client->log != 1) {
-        dprintf(client->fd, "530 Not Connected");
+        dprintf(client->fd, "530 Not Connected.\r\n");
         return (0);
     }
     if (pipe(link) == -1) {
@@ -259,9 +309,9 @@ int list(client_t *client)
         }
         wait(NULL);
     }
-    dprintf(client->fd, "150 File status okay; about to open data connection.\n");
+    dprintf(client->fd, "150 File status okay; about to open data connection.\r\n");
     dprintf(client->fd, "%s", res);
-    dprintf(client->fd, "226 Closing data connection.\n");
+    dprintf(client->fd, "226 Closing data connection.\r\n");
     free(res);
     return (0);
 }
@@ -316,7 +366,7 @@ int init_server(int port)
         perror("Bind");
         return (0);
     }
-    if (listen(my_socket, 3) == -1)
+    if (listen(my_socket, 100) == -1)
         perror("Listen");
     return (my_socket);
 }
@@ -328,7 +378,7 @@ int choose_command(client_t *client)
             return (ptr[i](client));
         }
     }
-    dprintf(client->fd, "500 Unknow command.\n");
+    dprintf(client->fd, "503 Bad sequence of commands.\r\n");
     return (0);
 }
 
@@ -336,11 +386,12 @@ int free_client(client_t *client)
 {
     my_free_tab(client->env);
     my_free_tab(client->command);
+    free(client->path);
     free(client);
     return (0);
 }
 
-int exec_client_connection(int fd, char **env)
+int exec_client_connection(int fd, char **env, char *path)
 {
     FILE *stream = fdopen(fd, "r");
     char *str = NULL;
@@ -349,9 +400,14 @@ int exec_client_connection(int fd, char **env)
 
     client->fd = fd;
     client->log = -1;
+    client->mode = -1;
     client->env = my_arraycpy(env);
+    client->path = strdup(path);
     while (getline(&str, &n, stream) >= 0) {
-        str[strlen(str) - 1] = '\0';
+        if (str[strlen(str) - 1] == '\n')
+            str[strlen(str) - 1] = '\0';
+        if (str[strlen(str) - 1] == '\r')
+            str[strlen(str) - 1] = '\0';
         client->command = word_tab(str, " ");
         if (choose_command(client) == 1)
             break;
@@ -370,7 +426,7 @@ int accept_client(int my_socket, struct sockaddr_in my_addr)
     if (socket_fd == -1)
         printf("error accept");
     else
-        dprintf(socket_fd, "220 Service ready for new user.\n");
+        dprintf(socket_fd, "220 Service ready for new user.\r\n");
     return socket_fd;
 }
 
@@ -397,7 +453,9 @@ int main(int ac, char **av, char **env)
         return (usage(av[0]));
     if (ac != 3)
         return (84);
-    chdir(av[2]);
+    srand(time(NULL));
+    if (chdir(av[2]) != 0)
+        return (84);
     my_addr = init_my_addr(atoi(av[1]));
     if ((my_socket = init_server(atoi(av[1]))) == 0)
         return (84);
@@ -421,7 +479,7 @@ int main(int ac, char **av, char **env)
                         return (0);
                     }
                     if (pid == 0)
-                        exec_client_connection(i, env);
+                        exec_client_connection(i, env, av[2]);
                     FD_CLR(i, &current);
                 }
             }

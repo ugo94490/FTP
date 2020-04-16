@@ -7,6 +7,28 @@
 
 #pragma once
 
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <sys/types.h>
+#include <sys/select.h>
+#include <sys/time.h>
+#include <sys/wait.h>
+#include <netinet/in.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <poll.h>
+#include <limits.h>
+#include <time.h>
+
+typedef struct sock_s
+{
+    int fd;
+    struct sockaddr_in my_addr;
+} sock_t;
+
 typedef struct client_s
 {
     int log;
@@ -14,6 +36,9 @@ typedef struct client_s
     char **command;
     char **env;
     char *user;
+    int mode;
+    char *path;
+    sock_t sock;
 } client_t;
 
 int my_strlen_tab(char **tab);
