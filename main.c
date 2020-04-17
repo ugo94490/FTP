@@ -261,8 +261,6 @@ int port_check(client_t *client)
     //char *ip = parse_ip(client->command[1]);
     int port = parse_port(client->command[1]);
     int option = 1;
-    pid_t pid = 0;
-    socklen_t lenght_socket = 0;
 
     client->sock.fd = socket(AF_INET, SOCK_STREAM, 0);
     if (client->sock.fd == -1) {
@@ -286,12 +284,6 @@ int port_check(client_t *client)
         return (0);
     }
     client->mode = 1;
-    pid = fork();
-    if (pid == 0) {
-        lenght_socket = sizeof(client->sock.my_addr);
-        client->sock.fd_client = accept(client->sock.fd, (struct sockaddr *) &client->sock.my_addr, &lenght_socket);
-        exit(0);
-    }
     return (0);
 }
 
