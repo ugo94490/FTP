@@ -22,6 +22,7 @@
 #include <poll.h>
 #include <limits.h>
 #include <time.h>
+#include <ctype.h>
 
 typedef struct sock_s
 {

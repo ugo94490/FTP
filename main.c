@@ -127,7 +127,7 @@ int cdup(client_t *client)
     else
         ret = chdir(new_dir);
     if (ret == 0)
-        dprintf(client->fd, "250 Directory successfully changed.\r\n");
+        dprintf(client->fd, "200 CDUP Okay.\r\n");
     else
         dprintf(client->fd, "550 Requested action not taken.\r\n");
     free(new_dir);
@@ -174,12 +174,14 @@ int pasv(client_t *client)
     uint16_t size = 0;
     int port = 0;
     int option = 1;
-    pid_t pid = 0;
-    socklen_t lenght_socket;
 
     if (client->log != 1)
         dprintf(client->fd, "530 Not Connected.\r\n");
     else {
+        if (client->mode != -1) {
+            client->mode = -1;
+            close(client->sock.fd);
+        }
         client->sock.fd = socket(AF_INET, SOCK_STREAM, 0);
         if (client->sock.fd == -1) {
             perror("Socket");
@@ -188,7 +190,7 @@ int pasv(client_t *client)
         client->sock.my_addr.sin_family = AF_INET;
         client->sock.my_addr.sin_addr.s_addr = INADDR_ANY;
         port = rand() % 3000 + 1024;
-        client->sock.my_addr.sin_port = port;
+        client->sock.my_addr.sin_port = htons(port);
         size = sizeof(client->sock.my_addr);
         if (setsockopt(client->sock.fd, SOL_SOCKET, (SO_REUSEPORT | SO_REUSEADDR), (char *)&option, sizeof(option)) < 0) {
             perror("Setsockopt");
@@ -202,37 +204,111 @@ int pasv(client_t *client)
             perror("Listen");
         client->mode = 0;
         dprintf(client->fd, "227 Entering Passive Mode (127,0,0,1,%d,%d).\r\n", port / 256, port % 256);
-        pid = fork();
-        if (pid == 0) {
-            lenght_socket = sizeof(client->sock.my_addr);
-            client->sock.fd_client = accept(client->sock.fd, (struct sockaddr *) &client->sock.my_addr, &lenght_socket);
-            exit(0);
-        }
     }
     return (0);
 }
 
-/*int parse_ip(char *ip)
+char *parse_ip(char *ip)
 {
-    char *str = strdup(ip);
+    char *str = strdup(ip + 1);
+    char *res = NULL;
+    char **tab = NULL;
+    int count = 0;
 
+    str[strlen(str) - 1] = 0;
+    tab = word_tab(str, ",");
+    if (my_strlen_tab(tab) != 6)
+        return (NULL);
+    for (int i = 0; i < 4; i++)
+        count += strlen(tab[i]);
+    res = malloc(sizeof(char) * (count + 5));
+    res = strcat(strcpy(res, tab[0]), ".");
+    for (int i = 1; i < 4; i++)
+        res = strcat(strcat(res, tab[i]), ".");
+    res[count + 3] = 0;
+    free(str);
+    my_free_tab(tab);
+    return (res);
+}
 
-}*/
-
-/*int port_check(client_t *client)
+int str_digit(char *str)
 {
-    //getip()
-    // COPY PASSV AVEC IP DONNEE
-}*/
+    for (int i = 0; str[i]; i++)
+        if (isdigit(str[i]) == 0)
+            return (1);
+    return (0);
+}
+
+int parse_port(char *ip)
+{
+    char *str = strdup(ip + 1);
+    char **tab = NULL;
+    int res = 0;
+
+    str[strlen(str) - 1] = 0;
+    tab = word_tab(str, ",");
+    if (str_digit(tab[4]) == 1 || str_digit(tab[5]) == 1)
+        return (-1);
+    res = atoi(tab[4]) * 256 + atoi(tab[5]);
+    my_free_tab(tab);
+    free(str);
+    return (res);
+}
+
+int port_check(client_t *client)
+{
+    uint16_t size = 0;
+    //char *ip = parse_ip(client->command[1]);
+    int port = parse_port(client->command[1]);
+    int option = 1;
+    pid_t pid = 0;
+    socklen_t lenght_socket = 0;
+
+    client->sock.fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (client->sock.fd == -1) {
+        perror("Socket");
+        return (0);
+    }
+    client->sock.my_addr.sin_family = AF_INET;
+    client->sock.my_addr.sin_addr.s_addr = INADDR_ANY;
+    client->sock.my_addr.sin_port = htons(port);
+    size = sizeof(client->sock.my_addr);
+    if (setsockopt(client->sock.fd, SOL_SOCKET, (SO_REUSEPORT | SO_REUSEADDR), (char *)&option, sizeof(option)) < 0) {
+        perror("Setsockopt");
+        return (0);
+    }
+    if (bind(client->sock.fd, (struct sockaddr *) &client->sock.my_addr, size) == -1) {
+        perror("Bind");
+        return (0);
+    }
+    if (listen(client->sock.fd, 100) == -1) {
+        perror("Listen");
+        return (0);
+    }
+    client->mode = 1;
+    pid = fork();
+    if (pid == 0) {
+        lenght_socket = sizeof(client->sock.my_addr);
+        client->sock.fd_client = accept(client->sock.fd, (struct sockaddr *) &client->sock.my_addr, &lenght_socket);
+        exit(0);
+    }
+    return (0);
+}
 
 int port(client_t *client)
 {
     if (client->log != 1)
         dprintf(client->fd, "530 Not Connected.\r\n");
-    else if (my_strlen_tab(client->command) != 1)
+    else if (my_strlen_tab(client->command) != 2)
         dprintf(client->fd, "501 Bad Argument.\r\n");
-    else
-        dprintf(client->fd, "200 Command okay.\r\n");
+    else {
+        if (client->mode != -1) {
+            client->mode = -1;
+            close(client->sock.fd);
+        }
+        port_check(client);
+        dprintf(client->fd, "200 PORT okay.\r\n");
+    }
     return (0);
 }
 
@@ -282,7 +358,7 @@ char *dupcat(char *str, char *str1, int n)
         new = strcat(new, str1);
         free(str);
     } else {
-        new = malloc(sizeof(char) * (n + 1)); 
+        new = malloc(sizeof(char) * (n + 1));
         new = strncpy(new, str1, n);
         new[n] = '\0';
     }
@@ -296,9 +372,14 @@ int list(client_t *client)
     char tmp[4096];
     int n = 0;
     char *res = NULL;
+    socklen_t lenght_socket;
 
     if (client->log != 1) {
         dprintf(client->fd, "530 Not Connected.\r\n");
+        return (0);
+    }
+    if (client->mode == -1) {
+        dprintf(client->fd, "425 Can't open data connection.\r\n");
         return (0);
     }
     if (pipe(link) == -1) {
@@ -312,7 +393,7 @@ int list(client_t *client)
     if (pid == 0) {
         dup2(link[1], STDOUT_FILENO);
         close(link[0]);
-        close (link[1]);
+        close(link[1]);
         if (my_strlen_tab(client->command) == 1)
             execl("/bin/ls", "ls", "-l", (char *)0);
         if (my_strlen_tab(client->command) == 2)
@@ -326,8 +407,17 @@ int list(client_t *client)
         wait(NULL);
     }
     dprintf(client->fd, "150 File status okay; about to open data connection.\r\n");
-    dprintf(client->fd, "%s", res);
-    dprintf(client->fd, "226 Closing data connection.\r\n");
+    pid = fork();
+    if (pid == 0) {
+        lenght_socket = sizeof(client->sock.my_addr);
+        client->sock.fd_client = accept(client->sock.fd, (struct sockaddr *) &client->sock.my_addr, &lenght_socket);
+        dprintf(client->sock.fd_client, "%s", res);
+        dprintf(client->fd, "226 Closing data connection.\r\n");
+        close(client->sock.fd);
+        close(client->sock.fd_client);
+        client->mode = -1;
+        exit(0);
+    }
     free(res);
     return (0);
 }
@@ -346,7 +436,7 @@ static int (*ptr[])(client_t *client) = {
     &noop,
     &retr,
     &stor,
-    &list 
+    &list
 };
 
 int usage(char *str)
@@ -390,7 +480,7 @@ int init_server(int port)
 int choose_command(client_t *client)
 {
     for (int i = 0; i < 14; i++) {
-        if (strncmp(client->command[0], cmd[i], strlen(cmd[i]) - 1) == 0) {
+        if (strncmp(client->command[0], cmd[i], strlen(cmd[i])) == 0) {
             return (ptr[i](client));
         }
     }
