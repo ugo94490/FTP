@@ -208,29 +208,6 @@ int pasv(client_t *client)
     return (0);
 }
 
-char *parse_ip(char *ip)
-{
-    char *str = strdup(ip + 1);
-    char *res = NULL;
-    char **tab = NULL;
-    int count = 0;
-
-    str[strlen(str) - 1] = 0;
-    tab = word_tab(str, ",");
-    if (my_strlen_tab(tab) != 6)
-        return (NULL);
-    for (int i = 0; i < 4; i++)
-        count += strlen(tab[i]);
-    res = malloc(sizeof(char) * (count + 5));
-    res = strcat(strcpy(res, tab[0]), ".");
-    for (int i = 1; i < 4; i++)
-        res = strcat(strcat(res, tab[i]), ".");
-    res[count + 3] = 0;
-    free(str);
-    my_free_tab(tab);
-    return (res);
-}
-
 int str_digit(char *str)
 {
     for (int i = 0; str[i]; i++)
@@ -258,7 +235,6 @@ int parse_port(char *ip)
 int port_check(client_t *client)
 {
     uint16_t size = 0;
-    //char *ip = parse_ip(client->command[1]);
     int port = parse_port(client->command[1]);
     int option = 1;
 
@@ -356,8 +332,53 @@ int retr_connection(client_t *client)
     return (0);
 }
 
-int stror_connection(client_t *client)
+int stor_connection(client_t *client)
 {
+    struct stat buffer;
+    char *name = NULL;
+    int len = 0;
+    int i = 0;
+    int offset = 0;
+    socklen_t lenght_socket;
+    pid_t pid = 0;
+    FILE *file = NULL;
+    FILE *stream = NULL;
+    char *content = NULL;
+
+    if (stat(client->command[1], &buffer) != 0) {
+        dprintf(client->fd, "451 Requested action aborted: local error in processing.\r\n");
+        return (0);
+    }
+    len = strlen(client->command[1]);
+    for (; len != 0 && client->command[1][len] != '/'; len--, i++);
+    name = malloc(sizeof(char) * (i + 1));
+    for (int j = 0; client->command[1][j]; j++)
+        if (client->command[1][j] == '/')
+            offset = 1;
+    name = strncpy(name, client->command[1] + len + offset, i);
+    name[i] = '\0';
+
+    dprintf(client->fd, "150 File status okay; about to open data connection.\r\n");
+    pid = fork();
+    if (pid == 0) {
+        lenght_socket = sizeof(client->sock.my_addr);
+        client->sock.fd_client = accept(client->sock.fd, (struct sockaddr *) &client->sock.my_addr, &lenght_socket);
+        stream = fopen(client->command[1], "r");
+        content = malloc(sizeof(char) * (buffer.st_size + 1));
+        fread(content, buffer.st_size + 1, sizeof(char), stream);
+        fclose(stream);
+        content[buffer.st_size] = 0;
+        file = fopen(name, "w+");
+        fwrite(content, buffer.st_size, sizeof(char), file);
+        fclose(file);
+        dprintf(client->fd, "226 Closing data connection.\r\n");
+        close(client->sock.fd);
+        close(client->sock.fd_client);
+        client->mode = -1;
+        exit(0);
+    }
+    free(content);
+    free(name);
     return (0);
 }
 
