@@ -394,7 +394,7 @@ int choose_command(client_t *client)
             return (ptr[i](client));
         }
     }
-    dprintf(client->fd, "503 Bad sequence of commands.\r\n");
+    dprintf(client->fd, "500 Unknow command.\r\n");
     return (0);
 }
 
