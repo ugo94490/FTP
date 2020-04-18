@@ -24,6 +24,33 @@ static const char *cmd[14] = {
     "LIST"
 };
 
+struct sockaddr_in init_my_addr(int port)
+{
+    struct sockaddr_in my_addr;
+
+    my_addr.sin_family = AF_INET;
+    my_addr.sin_addr.s_addr = INADDR_ANY;
+    my_addr.sin_port = htons(port);
+    return (my_addr);
+}
+
+char *dupcat(char *str, char *str1, int n)
+{
+    char *new;
+
+    if (str) {
+        new = malloc(sizeof(char) * (strlen(str) + n + 1));
+        new = strcpy(new, str);
+        new = strcat(new, str1);
+        free(str);
+    } else {
+        new = malloc(sizeof(char) * (n + 1));
+        new = strncpy(new, str1, n);
+        new[n] = '\0';
+    }
+    return (new);
+}
+
 int user(client_t *client)
 {
     if (my_strlen_tab(client->command) > 2) {
@@ -191,10 +218,8 @@ int pasv(client_t *client)
         client->sock.fd = socket(AF_INET, SOCK_STREAM, 0);
         if (client->sock.fd == -1)
             return (0);
-        client->sock.my_addr.sin_family = AF_INET;
-        client->sock.my_addr.sin_addr.s_addr = INADDR_ANY;
         port = rand() % 3000 + 1024;
-        client->sock.my_addr.sin_port = htons(port);
+        client->sock.my_addr = init_my_addr(port);
         size = sizeof(client->sock.my_addr);
         if (setsockopt(client->sock.fd, SOL_SOCKET, (SO_REUSEPORT |
             SO_REUSEADDR), (char *)&option, sizeof(option)) < 0)
@@ -340,68 +365,44 @@ int retr_connection(client_t *client)
     return (0);
 }
 
-void stor_exec(client_t *client, struct stat buffer, char *name, char *content)
+void stor_exec(client_t *client, socklen_t lenght_socket)
 {
-    socklen_t lenght_socket;
-    FILE *file = NULL;
     FILE *stream = NULL;
+    char tmp[4096];
+    char *res = NULL;
+    int n = 0;
 
     lenght_socket = sizeof(client->sock.my_addr);
     client->sock.fd_client = accept(client->sock.fd, (struct sockaddr *)
     &client->sock.my_addr, &lenght_socket);
-    stream = fopen(client->command[1], "r");
-    content = malloc(sizeof(char) * (buffer.st_size + 1));
-    fread(content, buffer.st_size + 1, sizeof(char), stream);
+    stream = fopen(client->command[1], "w+");
+    while ((n = read(client->sock.fd_client, tmp, 4096)) > 0) {
+        res = dupcat(res, tmp, n);
+        if (n < 4096) {
+            printf("%d\n", n);
+            break;
+        }
+    }
+    fwrite(res, strlen(res) + 1, sizeof(char), stream);
     fclose(stream);
-    content[buffer.st_size] = 0;
-    file = fopen(name, "w+");
-    fwrite(content, buffer.st_size, sizeof(char), file);
-    fclose(file);
     dprintf(client->fd, "226 Closing data connection.\r\n");
-    close(client->sock.fd);
-    close(client->sock.fd_client);
-    client->mode = -1;
-}
-
-char *get_name(client_t *client, char *name)
-{
-    int len = 0;
-    int i = 0;
-    int offset = 0;
-
-    len = strlen(client->command[1]);
-    for (; len != 0 && client->command[1][len] != '/'; len--, i++);
-    name = malloc(sizeof(char) * (i + 1));
-    for (int j = 0; client->command[1][j]; j++)
-        if (client->command[1][j] == '/')
-            offset = 1;
-    name = strncpy(name, client->command[1] + len + offset, i);
-    name[i] = '\0';
-    return (name);
 }
 
 int stor_connection(client_t *client)
 {
-    struct stat buffer;
-    char *name = NULL;
     pid_t pid = 0;
-    char *content = NULL;
+    socklen_t lenght_socket = 0;
 
-    if (stat(client->command[1], &buffer) != 0) {
-        dprintf(client->fd, "451 Requested action aborted: local error in ");
-        dprintf(client->fd, "processing.\r\n");
-        return (0);
-    }
-    name = get_name(client, name);
     dprintf(client->fd, "150 File status okay; about to open data");
     dprintf(client->fd, " connection.\r\n");
     pid = fork();
     if (pid == 0) {
-        stor_exec(client, buffer, name, content);
+        stor_exec(client, lenght_socket);
+        close(client->sock.fd);
+        close(client->sock.fd_client);
+        client->mode = -1;
         exit(0);
     }
-    free(content);
-    free(name);
     return (0);
 }
 
@@ -433,23 +434,6 @@ int stor(client_t *client)
     else
         stor_connection(client);
     return (0);
-}
-
-char *dupcat(char *str, char *str1, int n)
-{
-    char *new;
-
-    if (str) {
-        new = malloc(sizeof(char) * (strlen(str) + n + 1));
-        new = strcpy(new, str);
-        new = strcat(new, str1);
-        free(str);
-    } else {
-        new = malloc(sizeof(char) * (n + 1));
-        new = strncpy(new, str1, n);
-        new[n] = '\0';
-    }
-    return (new);
 }
 
 int check_client(client_t *client)
@@ -543,16 +527,6 @@ static int (*ptr[])(client_t *client) = {
     &stor,
     &list
 };
-
-struct sockaddr_in init_my_addr(int port)
-{
-    struct sockaddr_in my_addr;
-
-    my_addr.sin_family = AF_INET;
-    my_addr.sin_addr.s_addr = INADDR_ANY;
-    my_addr.sin_port = htons(port);
-    return (my_addr);
-}
 
 int usage(char *str)
 {
