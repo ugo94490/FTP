@@ -107,11 +107,19 @@ int cwd(client_t *client)
     return (0);
 }
 
+void cdup_message(client_t *client, int ret)
+{
+    if (ret == 0)
+        dprintf(client->fd, "200 CDUP Okay.\r\n");
+    else
+        dprintf(client->fd, "550 Requested action not taken.\r\n");
+}
+
 int cdup(client_t *client)
 {
     char path[256] = {0};
     int len = 0;
-    char *new_dir = NULL;
+    char *dir = NULL;
     int ret = 0;
 
     if (client->log != 1) {
@@ -121,18 +129,12 @@ int cdup(client_t *client)
     getcwd(path, sizeof(path));
     len = strlen(path);
     for (; len != 0 && path[len] != '/'; len--);
-    new_dir = malloc(sizeof(char) * (len + 1));
-    new_dir = strncpy(new_dir, path, len);
-    new_dir[len] = '\0';
-    if (strlen(new_dir) < strlen(client->path))
-        ret = chdir(path);
-    else
-        ret = chdir(new_dir);
-    if (ret == 0)
-        dprintf(client->fd, "200 CDUP Okay.\r\n");
-    else
-        dprintf(client->fd, "550 Requested action not taken.\r\n");
-    free(new_dir);
+    dir = malloc(sizeof(char) * (len + 1));
+    dir = strncpy(dir, path, len);
+    dir[len] = '\0';
+    ret = (strlen(dir) < strlen(client->path)) ? chdir(path) : chdir(dir);
+    cdup_message(client, ret);
+    free(dir);
     return (0);
 }
 
@@ -536,6 +538,16 @@ static int (*ptr[])(client_t *client) = {
     &list
 };
 
+struct sockaddr_in init_my_addr(int port)
+{
+    struct sockaddr_in my_addr;
+
+    my_addr.sin_family = AF_INET;
+    my_addr.sin_addr.s_addr = INADDR_ANY;
+    my_addr.sin_port = htons(port);
+    return (my_addr);
+}
+
 int usage(char *str)
 {
     printf("USAGE: %s port path\n", str);
@@ -622,16 +634,6 @@ int accept_client(int my_socket, struct sockaddr_in my_addr)
     else
         dprintf(socket_fd, "220 Service ready for new user.\r\n");
     return socket_fd;
-}
-
-struct sockaddr_in init_my_addr(int port)
-{
-    struct sockaddr_in my_addr;
-
-    my_addr.sin_family = AF_INET;
-    my_addr.sin_addr.s_addr = INADDR_ANY;
-    my_addr.sin_port = htons(port);
-    return (my_addr);
 }
 
 int main(int ac, char **av, char **env)
