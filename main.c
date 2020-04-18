@@ -636,6 +636,7 @@ fd_set check_ready(int i, fd_set current, int my_socket, char **av)
             exec_client_connection(i, av[2]);
             exit(0);
         }
+        close(i);
         FD_CLR(i, &current);
     }
     return (current);
