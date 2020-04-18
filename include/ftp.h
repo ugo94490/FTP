@@ -37,7 +37,6 @@ typedef struct client_s
     int log;
     int fd;
     char **command;
-    char **env;
     char *user;
     int mode;
     char *path;

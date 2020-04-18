@@ -578,14 +578,13 @@ int choose_command(client_t *client)
 
 int free_client(client_t *client)
 {
-    my_free_tab(client->env);
     my_free_tab(client->command);
     free(client->path);
     free(client);
     return (0);
 }
 
-int exec_client_connection(int fd, char **env, char *path)
+int exec_client_connection(int fd, char *path)
 {
     FILE *stream = fdopen(fd, "r");
     char *str = NULL;
@@ -595,7 +594,6 @@ int exec_client_connection(int fd, char **env, char *path)
     client->fd = fd;
     client->log = -1;
     client->mode = -1;
-    client->env = my_arraycpy(env);
     client->path = strdup(path);
     while (getline(&str, &n, stream) >= 0) {
         (str[strlen(str) - 1] == '\n') ? str[strlen(str) - 1] = '\0' : 0;
@@ -622,23 +620,46 @@ int accept_client(int my_socket, struct sockaddr_in my_addr)
     return socket_fd;
 }
 
-int main(int ac, char **av, char **env)
+fd_set check_ready(int i, fd_set current, int my_socket, char **av)
+{
+    int client_socket = 0;
+    pid_t pid = 0;
+    struct sockaddr_in my_addr = init_my_addr(atoi(av[1]));
+
+    if (i == my_socket) {
+        client_socket = accept_client(my_socket, my_addr);
+        FD_SET(client_socket, &current);
+    } else {
+        if ((pid = fork()) == -1)
+            return (current);
+        if (pid == 0) {
+            exec_client_connection(i, av[2]);
+            exit(0);
+        }
+        FD_CLR(i, &current);
+    }
+    return (current);
+}
+
+fd_set check_connection(fd_set current, fd_set ready, int my_socket, char **av)
+{
+    for (int i = 0; i < FD_SETSIZE; i++)
+        if (FD_ISSET(i, &ready))
+            current = check_ready(i, current, my_socket, av);
+    return (current);
+}
+
+int main(int ac, char **av)
 {
     int my_socket = 0;
-    int client_socket = 0;
-    struct sockaddr_in my_addr;
     fd_set current;
     fd_set ready;
-    pid_t pid = 0;
 
     if (ac == 2 && strcmp(av[1], "-help") == 0)
         return (usage(av[0]));
-    if (ac != 3)
+    if (ac != 3 || chdir(av[2]) != 0)
         return (84);
     srand(time(NULL));
-    if (chdir(av[2]) != 0)
-        return (84);
-    my_addr = init_my_addr(atoi(av[1]));
     if ((my_socket = init_server(atoi(av[1]))) == 0)
         return (84);
     FD_ZERO(&current);
@@ -646,28 +667,9 @@ int main(int ac, char **av, char **env)
 
     while (1) {
         ready = current;
-        if (select(FD_SETSIZE, &ready, NULL, NULL, NULL) < 0) {
-            perror("SELECT");
+        if (select(FD_SETSIZE, &ready, NULL, NULL, NULL) < 0)
             return (0);
-        }
-        for (int i = 0; i < FD_SETSIZE; i++) {
-            if (FD_ISSET(i, &ready)) {
-                if (i == my_socket) {
-                    client_socket = accept_client(my_socket, my_addr);
-                    FD_SET(client_socket, &current);
-                } else {
-                    if ((pid = fork()) == -1) {
-                        perror("FORK CLIENT");
-                        return (0);
-                    }
-                    if (pid == 0) {
-                        exec_client_connection(i, env, av[2]);
-                        exit(0);
-                    }
-                    FD_CLR(i, &current);
-                }
-            }
-        }
+        current = check_connection(current, ready, my_socket, av);
     }
     return (0);
 }
