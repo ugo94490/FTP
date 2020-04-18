@@ -444,6 +444,19 @@ char *dupcat(char *str, char *str1, int n)
     return (new);
 }
 
+int check_client(client_t *client)
+{
+    if (client->log != 1) {
+        dprintf(client->fd, "530 Not Connected.\r\n");
+        return (84);
+    }
+    if (client->mode == -1) {
+        dprintf(client->fd, "425 Can't open data connection.\r\n");
+        return (84);
+    }
+    return (0);
+}
+
 int list(client_t *client)
 {
     pid_t pid = 0;
@@ -453,22 +466,12 @@ int list(client_t *client)
     char *res = NULL;
     socklen_t lenght_socket;
 
-    if (client->log != 1) {
-        dprintf(client->fd, "530 Not Connected.\r\n");
+    if (check_client(client) == 84)
         return (0);
-    }
-    if (client->mode == -1) {
-        dprintf(client->fd, "425 Can't open data connection.\r\n");
+    if (pipe(link) == -1)
         return (0);
-    }
-    if (pipe(link) == -1) {
-        perror("PIPE");
+    if ((pid = fork()) == -1)
         return (0);
-    }
-    if ((pid = fork()) == -1) {
-        perror("FORK LS");
-        return (0);
-    }
     if (pid == 0) {
         dup2(link[1], STDOUT_FILENO);
         close(link[0]);
@@ -593,10 +596,8 @@ int exec_client_connection(int fd, char **env, char *path)
     client->env = my_arraycpy(env);
     client->path = strdup(path);
     while (getline(&str, &n, stream) >= 0) {
-        if (str[strlen(str) - 1] == '\n')
-            str[strlen(str) - 1] = '\0';
-        if (str[strlen(str) - 1] == '\r')
-            str[strlen(str) - 1] = '\0';
+        (str[strlen(str) - 1] == '\n') ? str[strlen(str) - 1] = '\0' : 0;
+        (str[strlen(str) - 1] == '\r') ? str[strlen(str) - 1] = '\0' : 0;
         client->command = word_tab(str, " ");
         if (choose_command(client) == 1)
             break;
