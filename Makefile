@@ -5,10 +5,19 @@
 ## Makefile
 ##
 
-SRC	=		main.c		\
-			tab_tools.c	\
-			word_tab.c	\
-			free_word.c \
+SRC	=		main.c				\
+			src/tab_tools.c		\
+			src/word_tab.c		\
+			src/free_word.c 	\
+			src/client.c		\
+			src/command.c 		\
+			src/command_2.c 	\
+			src/command_3.c 	\
+			src/retr.c			\
+			src/tools.c 		\
+			src/list.c 			\
+			src/stor.c 			\
+			src/init_server.c	\
 
 SRC_T	=
 
@@ -20,16 +29,16 @@ TEST_FLAGS	=	-lcriterion --coverage
 
 NAME	=	myftp
 
-CFLAGS =	-Wall -Wextra -g3
+CFLAGS =	-Wall -Wextra
 
-CPPFLAGS	=	-I./include -g3
+CPPFLAGS	=	-I./include
 
 .DEFAULT := all
 
 all: $(NAME)
 
 $(NAME):	$(OBJ)
-	gcc -o $(NAME) $(OBJ) $(CPPFLAGS) $(CFLAGS) -g3
+	gcc -o $(NAME) $(OBJ) $(CPPFLAGS) $(CFLAGS)
 
 tests_run 	:
 			gcc $(SRC_T) $(CFLAGS) $(CPPFLAGS) $(TEST_FLAGS) -o $(TESTS_NAME)
