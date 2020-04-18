@@ -7,6 +7,9 @@
 
 #include "ftp.h"
 
+static const char *MSG_150 = "150 File status okay; about to open "
+"data connection.\r\n";
+
 static const char *cmd[14] = {
     "USER",
     "PASS",
@@ -360,13 +363,14 @@ int retr_connection(client_t *client)
     stream = fopen(client->command[1], "r");
     fread(res, buffer.st_size + 1, 1, stream);
     res[buffer.st_size] = 0;
-    dprintf(client->fd, "150 File status okay; about to open data");
-    dprintf(client->fd, " connection.\r\n");
+    dprintf(client->fd, MSG_150);
     pid = fork();
     if (pid == 0) {
         retr_exec(client, res);
         exit(0);
     }
+    client->mode = -1;
+    close(client->sock.fd);
     free(res);
     return (0);
 }
@@ -409,6 +413,8 @@ int stor_connection(client_t *client)
         client->mode = -1;
         exit(0);
     }
+    client->mode = -1;
+    close(client->sock.fd);
     return (0);
 }
 
@@ -466,7 +472,6 @@ void list_data(client_t *client, char *res)
     dprintf(client->fd, "226 Closing data connection.\r\n");
     close(client->sock.fd);
     close(client->sock.fd_client);
-    client->mode = -1;
 }
 
 char *read_list(char *res, int link[2])
@@ -506,13 +511,14 @@ int list(client_t *client)
     else
         res = read_list(res, link);
     wait(NULL);
-    dprintf(client->fd, "150 File status okay; about to open data");
-    dprintf(client->fd, " connection.\r\n");
+    dprintf(client->fd, MSG_150);
     pid = fork();
     if (pid == 0) {
         list_data(client, res);
         exit(0);
     }
+    client->mode = -1;
+    close(client->sock.fd);
     free(res);
     return (0);
 }
