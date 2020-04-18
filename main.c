@@ -202,11 +202,25 @@ int pwd(client_t *client)
     return (0);
 }
 
-int pasv(client_t *client)
+int init_socket_pasv(client_t *client)
 {
     uint16_t size = 0;
-    int port = 0;
     int option = 1;
+    size = sizeof(client->sock.my_addr);
+    if (setsockopt(client->sock.fd, SOL_SOCKET, (SO_REUSEPORT |
+        SO_REUSEADDR), (char *)&option, sizeof(option)) < 0)
+        return (0);
+    if (bind(client->sock.fd, (struct sockaddr *) &client->sock.my_addr,
+        size) == -1)
+        return (0);
+    if (listen(client->sock.fd, 100) == -1)
+        perror("Listen");
+    return (0);
+}
+
+int pasv(client_t *client)
+{
+    int port = 0;
 
     if (client->log != 1)
         dprintf(client->fd, "530 Not Connected.\r\n");
@@ -220,15 +234,7 @@ int pasv(client_t *client)
             return (0);
         port = rand() % 3000 + 1024;
         client->sock.my_addr = init_my_addr(port);
-        size = sizeof(client->sock.my_addr);
-        if (setsockopt(client->sock.fd, SOL_SOCKET, (SO_REUSEPORT |
-            SO_REUSEADDR), (char *)&option, sizeof(option)) < 0)
-            return (0);
-        if (bind(client->sock.fd, (struct sockaddr *) &client->sock.my_addr,
-            size) == -1)
-            return (0);
-        if (listen(client->sock.fd, 100) == -1)
-            perror("Listen");
+        init_socket_pasv(client);
         client->mode = 0;
         dprintf(client->fd, "227 Entering Passive Mode (127,0,0,1");
         dprintf(client->fd, ",%d,%d).\r\n", port / 256, port % 256);
