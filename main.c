@@ -203,7 +203,8 @@ int pasv(client_t *client)
         if (listen(client->sock.fd, 100) == -1)
             perror("Listen");
         client->mode = 0;
-        dprintf(client->fd, "227 Entering Passive Mode (127,0,0,1,%d,%d).\r\n", port / 256, port % 256);
+        dprintf(client->fd, "227 Entering Passive Mode (127,0,0,1");
+        dprintf(client->fd, ",%d,%d).\r\n", port / 256, port % 256);
     }
     return (0);
 }
@@ -247,11 +248,13 @@ int port_check(client_t *client)
     client->sock.my_addr.sin_addr.s_addr = INADDR_ANY;
     client->sock.my_addr.sin_port = htons(port);
     size = sizeof(client->sock.my_addr);
-    if (setsockopt(client->sock.fd, SOL_SOCKET, (SO_REUSEPORT | SO_REUSEADDR), (char *)&option, sizeof(option)) < 0) {
+    if (setsockopt(client->sock.fd, SOL_SOCKET, (SO_REUSEPORT | SO_REUSEADDR),
+    (char *)&option, sizeof(option)) < 0) {
         perror("Setsockopt");
         return (0);
     }
-    if (bind(client->sock.fd, (struct sockaddr *) &client->sock.my_addr, size) == -1) {
+    if (bind(client->sock.fd, (struct sockaddr *) &client->sock.my_addr,
+    size) == -1) {
         perror("Bind");
         return (0);
     }
@@ -309,18 +312,21 @@ int retr_connection(client_t *client)
     char *res = NULL;
 
     if (stat(client->command[1], &buffer) != 0) {
-        dprintf(client->fd, "451 Requested action aborted: local error in processing.\r\n");
+        dprintf(client->fd, "451 Requested action aborted: local error in");
+        dprintf(client->fd, " processing.\r\n");
         return (0);
     }
     res = malloc(sizeof(char) * (buffer.st_size + 1));
-    stream = fopen(client->command[1], "r"); 
+    stream = fopen(client->command[1], "r");
     fread(res, buffer.st_size + 1, 1, stream);
     res[buffer.st_size] = 0;
-    dprintf(client->fd, "150 File status okay; about to open data connection.\r\n");
+    dprintf(client->fd, "150 File status okay; about to open data");
+    dprintf(client->fd, " connection.\r\n");
     pid = fork();
     if (pid == 0) {
         lenght_socket = sizeof(client->sock.my_addr);
-        client->sock.fd_client = accept(client->sock.fd, (struct sockaddr *) &client->sock.my_addr, &lenght_socket);
+        client->sock.fd_client = accept(client->sock.fd, (struct sockaddr *)
+        &client->sock.my_addr, &lenght_socket);
         dprintf(client->sock.fd_client, "%s", res);
         dprintf(client->fd, "226 Closing data connection.\r\n");
         close(client->sock.fd);
@@ -346,7 +352,8 @@ int stor_connection(client_t *client)
     char *content = NULL;
 
     if (stat(client->command[1], &buffer) != 0) {
-        dprintf(client->fd, "451 Requested action aborted: local error in processing.\r\n");
+        dprintf(client->fd, "451 Requested action aborted: local error in ");
+        dprintf(client->fd, "processing.\r\n");
         return (0);
     }
     len = strlen(client->command[1]);
@@ -358,11 +365,13 @@ int stor_connection(client_t *client)
     name = strncpy(name, client->command[1] + len + offset, i);
     name[i] = '\0';
 
-    dprintf(client->fd, "150 File status okay; about to open data connection.\r\n");
+    dprintf(client->fd, "150 File status okay; about to open data");
+    dprintf(client->fd, " connection.\r\n");
     pid = fork();
     if (pid == 0) {
         lenght_socket = sizeof(client->sock.my_addr);
-        client->sock.fd_client = accept(client->sock.fd, (struct sockaddr *) &client->sock.my_addr, &lenght_socket);
+        client->sock.fd_client = accept(client->sock.fd, (struct sockaddr *)
+        &client->sock.my_addr, &lenght_socket);
         stream = fopen(client->command[1], "r");
         content = malloc(sizeof(char) * (buffer.st_size + 1));
         fread(content, buffer.st_size + 1, sizeof(char), stream);
@@ -470,11 +479,13 @@ int list(client_t *client)
         }
         wait(NULL);
     }
-    dprintf(client->fd, "150 File status okay; about to open data connection.\r\n");
+    dprintf(client->fd, "150 File status okay; about to open data");
+    dprintf(client->fd, " connection.\r\n");
     pid = fork();
     if (pid == 0) {
         lenght_socket = sizeof(client->sock.my_addr);
-        client->sock.fd_client = accept(client->sock.fd, (struct sockaddr *) &client->sock.my_addr, &lenght_socket);
+        client->sock.fd_client = accept(client->sock.fd, (struct sockaddr *)
+        &client->sock.my_addr, &lenght_socket);
         dprintf(client->sock.fd_client, "%s", res);
         dprintf(client->fd, "226 Closing data connection.\r\n");
         close(client->sock.fd);
@@ -506,7 +517,8 @@ static int (*ptr[])(client_t *client) = {
 int usage(char *str)
 {
     printf("USAGE: %s port path\n", str);
-    printf("       port  is the port number on which the server socket listens\n");
+    printf("       port  is the port number on which the server socket");
+    printf(" listens\n");
     printf("       path  is the path to the home directory for the Anonymous");
     printf(" user\n");
     return (0);
@@ -528,7 +540,8 @@ int init_server(int port)
     my_addr.sin_addr.s_addr = INADDR_ANY;
     my_addr.sin_port = htons(port);
     lenght_socket = sizeof(my_addr);
-    if (setsockopt(my_socket, SOL_SOCKET, (SO_REUSEPORT | SO_REUSEADDR), (char *)&option, sizeof(option)) < 0) {
+    if (setsockopt(my_socket, SOL_SOCKET, (SO_REUSEPORT | SO_REUSEADDR),
+    (char *)&option, sizeof(option)) < 0) {
         perror("Setsockopt");
         return (0);
     }
@@ -590,8 +603,8 @@ int exec_client_connection(int fd, char **env, char *path)
 
 int accept_client(int my_socket, struct sockaddr_in my_addr)
 {
-    socklen_t lenght_socket = sizeof(my_addr);
-    int socket_fd = accept(my_socket, (struct sockaddr *) &my_addr, &lenght_socket);
+    socklen_t lenght = sizeof(my_addr);
+    int socket_fd = accept(my_socket, (struct sockaddr *) &my_addr, &lenght);
 
     if (socket_fd == -1)
         printf("error accept");
