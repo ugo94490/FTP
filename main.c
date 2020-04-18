@@ -37,7 +37,8 @@ int user(client_t *client)
     else {
         client->user = strdup(client->command[1]);
         client->log = 0;
-        dprintf(client->fd, "331 %s okay, need password.\r\n", client->command[1]);
+        dprintf(client->fd, "331 %s okay,", client->command[1]);
+        dprintf(client->fd, " need password.\r\n");
     }
     return (0);
 }
@@ -97,9 +98,10 @@ int cwd(client_t *client)
             ret = chdir(client->path);
         else
             ret = check_chdir(client);
-        if (ret == 0)
-            dprintf(client->fd, "250 Requested file action okay, completed.\r\n");
-        else
+        if (ret == 0) {
+            dprintf(client->fd, "250 Requested file action okay,");
+            dprintf(client->fd, " completed.\r\n");
+        } else
             dprintf(client->fd, "550 Failed to change directory.\r\n");
     }
     return (0);
@@ -145,12 +147,14 @@ int dele(client_t *client)
 {
     if (client->log != 1)
         dprintf(client->fd, "530 Not Connected.\r\n");
-    else if (my_strlen_tab(client->command) == 1 || my_strlen_tab(client->command) > 2)
+    else if (my_strlen_tab(client->command) == 1 ||
+        my_strlen_tab(client->command) > 2)
         dprintf(client->fd, "501 Bad Argument.\r\n");
     else {
-        if (remove(client->command[1]) == 0)
-            dprintf(client->fd, "250 Requested file action okay, completed.\r\n");
-        else
+        if (remove(client->command[1]) == 0) {
+            dprintf(client->fd, "250 Requested file action okay,");
+            dprintf(client->fd, " completed.\r\n");
+        } else
             dprintf(client->fd, "550 Can't Delete file.\r\n");
     }
     return (0);
@@ -192,11 +196,13 @@ int pasv(client_t *client)
         port = rand() % 3000 + 1024;
         client->sock.my_addr.sin_port = htons(port);
         size = sizeof(client->sock.my_addr);
-        if (setsockopt(client->sock.fd, SOL_SOCKET, (SO_REUSEPORT | SO_REUSEADDR), (char *)&option, sizeof(option)) < 0) {
+        if (setsockopt(client->sock.fd, SOL_SOCKET, (SO_REUSEPORT |
+        SO_REUSEADDR), (char *)&option, sizeof(option)) < 0) {
             perror("Setsockopt");
             return (0);
         }
-        if (bind(client->sock.fd, (struct sockaddr *) &client->sock.my_addr, size) == -1) {
+        if (bind(client->sock.fd, (struct sockaddr *) &client->sock.my_addr,
+        size) == -1) {
             perror("Bind");
             return (0);
         }
