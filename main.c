@@ -22,7 +22,6 @@ int main(int ac, char **av)
         return (84);
     FD_ZERO(&current);
     FD_SET(my_socket, &current);
-
     while (1) {
         ready = current;
         if (select(FD_SETSIZE, &ready, NULL, NULL, NULL) < 0)
