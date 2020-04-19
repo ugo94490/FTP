@@ -302,3 +302,54 @@ Test(ftp, dele_ok)
     ret = dele(other);
     cr_assert_eq(ret, 0);
 }
+
+Test(ftp, usage_test)
+{
+    int ret = usage("lol");
+
+    cr_assert_eq(ret, 0);
+}
+
+Test(ftp, noop_log)
+{
+    client_t *other = malloc(sizeof(client_t));
+    int ret = 0;
+
+    other->log = 0;
+    other->fd = 0;
+    ret = noop(other);
+    cr_assert_eq(ret, 0);
+}
+
+Test(ftp, abort_connection)
+{
+    client_t *other = malloc(sizeof(client_t));
+    int ret = 0;
+
+    other->log = 0;
+    other->fd = 0;
+    ret = connection_abort(other);
+    cr_assert_eq(ret, 0);
+}
+
+Test(ftp, help_not_log)
+{
+    client_t *other = malloc(sizeof(client_t));
+    int ret = 0;
+
+    other->log = 0;
+    other->fd = 0;
+    ret = help(other);
+    cr_assert_eq(ret, 0);
+}
+
+Test(ftp, help_log)
+{
+    client_t *other = malloc(sizeof(client_t));
+    int ret = 0;
+
+    other->log = 1;
+    other->fd = 0;
+    ret = help(other);
+    cr_assert_eq(ret, 0);
+}

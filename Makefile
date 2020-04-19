@@ -25,6 +25,7 @@ SRC_T	=	tests/test.c 		\
 			src/free_word.c 	\
 			src/tools.c 		\
 			src/command_2.c 	\
+			src/command_3.c 	\
 
 OBJ	=	$(SRC:.c=.o)
 

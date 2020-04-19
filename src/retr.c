@@ -37,10 +37,20 @@ void retr_exec(client_t *client, char *res)
     close(client->sock.fd_client);
 }
 
-int connection_abort(client_t *client)
+int port(client_t *client)
 {
-    dprintf(client->fd, "451 Requested action aborted: local error in");
-    dprintf(client->fd, " processing.\r\n");
+    if (client->log != 1)
+        dprintf(client->fd, "530 Not Connected.\r\n");
+    else if (my_strlen_tab(client->command) != 2)
+        dprintf(client->fd, "501 Bad Argument.\r\n");
+    else {
+        if (client->mode != -1) {
+            client->mode = -1;
+            close(client->sock.fd);
+        }
+        port_check(client);
+        dprintf(client->fd, "200 PORT okay.\r\n");
+    }
     return (0);
 }
 
