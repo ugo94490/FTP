@@ -10,7 +10,7 @@
 void cdup_message(client_t *client, int ret)
 {
     if (ret == 0)
-        dprintf(client->fd, "200 CDUP Okay.\r\n");
+        dprintf(client->fd, "250 CDUP Okay.\r\n");
     else
         dprintf(client->fd, "550 Requested action not taken.\r\n");
 }
@@ -32,7 +32,7 @@ int cdup(client_t *client)
     dir = malloc(sizeof(char) * (len + 1));
     dir = strncpy(dir, path, len);
     dir[len] = '\0';
-    ret = (strlen(dir) < strlen(client->path)) ? chdir(path) : chdir(dir);
+    ret = chdir(dir);
     cdup_message(client, ret);
     free(dir);
     return (0);

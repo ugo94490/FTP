@@ -57,11 +57,14 @@ int check_client(client_t *client)
 
 int parse_port(char *ip)
 {
-    char *str = strdup(ip + 1);
+    char *str = NULL;
     char **tab = NULL;
     int res = 0;
 
-    str[strlen(str) - 1] = 0;
+    if (ip[0] == '(')
+        str = strdup(ip + 1);
+    if (str[strlen(str) - 1] == ')')
+        str[strlen(str) - 1] = 0;
     tab = word_tab(str, ",");
     if (str_digit(tab[4]) == 1 || str_digit(tab[5]) == 1)
         return (-1);

@@ -53,7 +53,7 @@ int check_chdir(client_t *client)
 
     if (client->command[1][0] != '/') {
         resolved = realpath(client->command[1], resolved);
-        if (resolved != NULL && strlen(resolved) > strlen(client->path)) {
+        if (resolved != NULL) {
             ret = chdir(client->command[1]);
             free(resolved);
         }
