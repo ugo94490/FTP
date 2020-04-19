@@ -7,6 +7,12 @@
 
 #include "ftp.h"
 
+static const char *MSG_150 = "150 File status okay; about to open "
+"data connection.\r\n";
+
+static const char *MSG_451 = "451 Requested action aborted: local error "
+"in processing.\r\n";
+
 int port_check(client_t *client)
 {
     uint16_t size = 0;
@@ -32,46 +38,67 @@ int port_check(client_t *client)
     return (0);
 }
 
-void stor_exec(client_t *client, socklen_t lenght_socket)
+void stor_exec(client_t *client, struct stat buffer, char *name, char *content)
 {
+    socklen_t lenght_socket;
+    FILE *file = NULL;
     FILE *stream = NULL;
-    char tmp[4096];
-    char *res = NULL;
-    int n = 0;
 
     lenght_socket = sizeof(client->sock.my_addr);
     client->sock.fd_client = accept(client->sock.fd, (struct sockaddr *)
     &client->sock.my_addr, &lenght_socket);
-    stream = fopen(client->command[1], "w+");
-    while ((n = read(client->sock.fd_client, tmp, 4096)) > 0) {
-        res = dupcat(res, tmp, n);
-        if (n < 4096) {
-            printf("%d\n", n);
-            break;
-        }
-    }
-    fwrite(res, strlen(res) + 1, sizeof(char), stream);
+    stream = fopen(client->command[1], "r");
+    content = malloc(sizeof(char) * (buffer.st_size + 1));
+    fread(content, buffer.st_size + 1, sizeof(char), stream);
     fclose(stream);
+    content[buffer.st_size] = 0;
+    file = fopen(name, "w+");
+    fwrite(content, buffer.st_size, sizeof(char), file);
+    fclose(file);
     dprintf(client->fd, "226 Closing data connection.\r\n");
+    close(client->sock.fd);
+    close(client->sock.fd_client);
+    client->mode = -1;
+}
+
+char *get_name(client_t *client, char *name)
+{
+    int len = 0;
+    int i = 0;
+    int offset = 0;
+
+    len = strlen(client->command[1]);
+    for (; len != 0 && client->command[1][len] != '/'; len--, i++);
+    name = malloc(sizeof(char) * (i + 1));
+    for (int j = 0; client->command[1][j]; j++)
+        if (client->command[1][j] == '/')
+            offset = 1;
+    name = strncpy(name, client->command[1] + len + offset, i);
+    name[i] = '\0';
+    return (name);
 }
 
 int stor_connection(client_t *client)
 {
+    struct stat buffer;
+    char *name = NULL;
     pid_t pid = 0;
-    socklen_t lenght_socket = 0;
+    char *content = NULL;
 
-    dprintf(client->fd, "150 File status okay; about to open data");
-    dprintf(client->fd, " connection.\r\n");
+    if (stat(client->command[1], &buffer) != 0)
+        return (dprintf(client->fd, MSG_451));
+    name = get_name(client, name);
+    dprintf(client->fd, MSG_150);
     pid = fork();
     if (pid == 0) {
-        stor_exec(client, lenght_socket);
+        stor_exec(client, buffer, name, content);
         close(client->sock.fd);
         close(client->sock.fd_client);
         client->mode = -1;
         exit(0);
     }
-    client->mode = -1;
-    close(client->sock.fd);
+    free(content);
+    free(name);
     return (0);
 }
 

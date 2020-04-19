@@ -96,7 +96,7 @@ int list(client_t *client);
 
 /* STOR.C */
 int port_check(client_t *client);
-void stor_exec(client_t *client, socklen_t lenght_socket);
+void stor_exec(client_t *client, struct stat buffer, char *name, char *content);
 int stor_connection(client_t *client);
 int stor(client_t *client);
 
