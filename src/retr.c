@@ -55,7 +55,7 @@ int retr_connection(client_t *client)
         return (connection_abort(client));
     res = malloc(sizeof(char) * (buffer.st_size + 1));
     stream = fopen(client->command[1], "r");
-    fread(res, buffer.st_size + 1, 1, stream);
+    fread(res, buffer.st_size, 1, stream);
     res[buffer.st_size] = 0;
     dprintf(client->fd, MSG_150);
     pid = fork();
