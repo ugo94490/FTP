@@ -19,7 +19,12 @@ SRC	=		main.c				\
 			src/stor.c 			\
 			src/init_server.c	\
 
-SRC_T	=
+SRC_T	=	tests/test.c 		\
+			src/tab_tools.c		\
+			src/word_tab.c		\
+			src/free_word.c 	\
+			src/tools.c 		\
+			src/command_2.c 	\
 
 OBJ	=	$(SRC:.c=.o)
 
@@ -47,9 +52,8 @@ tests_run 	:
 			gcovr -r . -b --exclude tests
 
 tests_clean 	:
-			rm tests/*.gcda
-			rm tests/*.gcno
-			rm *.gc*
+			rm *.gcda
+			rm *.gcno
 			rm unit_tests
 
 clean:
